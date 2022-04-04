@@ -1,0 +1,136 @@
+
+---
+- name: Install tomcat
+  become: yes
+  hosts: appserver
+  vars: 
+    - username: tomcat
+    - home_dir: /opt/tomcat
+    - default_shell: /bin/false 
+    - tomcat_version: 9.0.62
+    - tomcat_latest: /opt/tomcat/latest
+    - tomcat_latest_dir: /opt/tomcat/latest/bin
+    - tomcat_service_file: /etc/systemd/system/tomcat.service
+    - tomcat_user_name: devops
+    - tomcat_user_password: devops
+    - tomcat_user_xml_file: conf/tomcat-users.xml
+    - tomcat_user_acces_anywhere: 
+        - /opt/tomcat/latest/webapps/manager/META-INF/context.xml
+        - /opt/tomcat/latest/webapps/host-manager/META-INF/context.xml
+    - jankins_username: jenkins.war
+    - jenkins_url: https://mirrors.tuna.tsinghua.edu.cn/jenkins/war-stable/2.332.1/jenkins.war
+  tasks:
+    - name: update tomcat repo and install
+      apt:
+        update_cache: yes
+      when: ansible_facts['os_family'] == "Debian"
+    - name: install openjdk 11
+      package:
+        name: "{{ java_package }}"
+        state: present
+    - name: create a tomcat user
+      ansible.builtin.user:
+        create_home: yes
+        home: "{{ home_dir }}"
+        name:  "{{ username }}"
+        shell: "{{ default_shell }}"
+        state: present 
+      when: ansible_facts['os_family'] == "Debian"
+    - name: download tomcat
+      ansible.builtin.get_url:
+        url: "https://dlcdn.apache.org/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+      when: ansible_facts['os_family'] == "Debian"
+    - name: extract the tomcat 
+      ansible.builtin.unarchive:
+        src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        dest: "{{ home_dir }}"
+        creates: "{{ home_dir }}/tmp/apache-tomcat-{{ tomcat_version }}"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        remote_src: yes
+      when: ansible_facts['os_family'] == "Debian"
+    - name: create symlink 
+      ansible.builtin.file: 
+        src: "{{ home_dir }}/apache-tomcat-{{ tomcat_version }}"
+        dest: "{{ tomcat_latest }}"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        state: link
+      when: ansible_facts['os_family'] == "Debian"
+    - name: change dir ownership tomcat
+      ansible.builtin.file:
+        path: "{{ home_dir }}"
+        state: directory
+        recurse: yes
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      when: ansible_facts['os_family'] == "Debian"
+    - name: find .sh files
+      ansible.builtin.find:
+        paths: "{{ tomcat_latest_dir }}"
+        patterns: "*.sh"
+      when: ansible_facts['os_family'] == "Debian"
+      register: sh_tomcat_latest_bin
+    - name: print above tomcat .sh return values 
+      ansible.builtin.debug:
+        var: sh_tomcat_latest_bin
+      when: ansible_facts['os_family'] == "Debian" 
+    - name: change user permissions
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0755'
+      loop: "{{ sh_tomcat_latest_bin.files }}"
+      when: ansible_facts['os_family'] == "Debian" 
+    - name: copy the tomcat service files
+      ansible.builtin.template:
+        src: 'tomcat.service.j2'
+        dest: "{{ tomcat_service_file }}"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      when: ansible_facts['os_family'] == "Debian"
+      notify:
+        - start, enable and reload the tomcat service
+    - name: Ensure the tomcat service start
+      ansible.builtin.systemd:
+        name: 'tomcat.service'
+        state: 'started' 
+      when: ansible_facts['os_family'] == "Debian"
+    - name: create the tomcat user file
+      ansible.builtin.template:
+        src: 'tomcat-user.xml.j2'
+        dest: "{{ tomcat_latest }}/{{ tomcat_user_xml_file }}"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      when: ansible_facts['os_family'] == "Debian"
+      notify:
+        - start, enable and reload the tomcat service 
+    - name: tomcat access the hostmanager and manager 
+      ansible.builtin.template:
+        src: 'manger-context.xml.j2'
+        dest: "{{ item }}"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      when: ansible_facts['os_family'] == "Debian"
+      loop: "{{ tomcat_user_acces_anywhere }}"
+      notify:
+        - start, enable and reload the tomcat service
+    - name: download jenkins
+      ansible.builtin.get_url:
+        url: "{{ jenkins_url }}"
+        dest: "{{ tomcat_latest }}/webapps/{{ jankins_username }}"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      when: ansible_facts['os_family'] == "Debian"  
+      notify:
+        - start, enable and reload the tomcat service   
+  handlers:    
+    - name: start, enable and reload the tomcat service
+      ansible.builtin.systemd:
+        name: 'tomcat.service'
+        enabled: yes
+        daemon_reload: yes
+        state: 'restarted'
+      when: ansible_facts['os_family'] == "Debian"    

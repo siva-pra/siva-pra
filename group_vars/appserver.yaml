@@ -1,0 +1,15 @@
+ username: tomcat
+ home_dir: /opt/tomcat
+ default_shell: /bin/false 
+ tomcat_version: 9.0.62
+ tomcat_latest: /opt/tomcat/latest
+ tomcat_latest_dir: /opt/tomcat/latest/bin
+ tomcat_service_file: /etc/systemd/system/tomcat.service
+ tomcat_user_name: devops
+ tomcat_user_password: devops
+ tomcat_user_xml_file: conf/tomcat-users.xml
+ tomcat_user_acces_anywhere: 
+   - /opt/tomcat/latest/webapps/manager/META-INF/context.xml
+   - /opt/tomcat/latest/webapps/host-manager/META-INF/context.xml
+ jankins_username: jenkins.war
+ jenkins_url: https://mirrors.tuna.tsinghua.edu.cn/jenkins/war-stable/2.332.1/jenkins.war
