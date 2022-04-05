@@ -39,7 +39,6 @@
       ansible.builtin.get_url:
         url: "https://dlcdn.apache.org/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
         dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
-      when: ansible_facts['os_family'] == "Debian"
     - name: extract the tomcat 
       ansible.builtin.unarchive:
         src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
